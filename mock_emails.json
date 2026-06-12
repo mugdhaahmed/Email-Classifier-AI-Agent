@@ -1,0 +1,23 @@
+[
+  {
+    "msg_id": "msg_001_2026",
+    "sender": "billing@stripe-alerts.com",
+    "subject": "URGENT: Chargeback settlement failure for account #4920",
+    "body": "Our automated system detected a recurring payment processing exception on merchant terminal #4920. Settlement is blocked pending dynamic compliance review documentation. Immediate action required.",
+    "received_at": "2026-06-12T16:00:00Z"
+  },
+  {
+    "msg_id": "msg_002_2026",
+    "sender": "noreply@github.com",
+    "subject": "Discover the new GitHub Universe schedule for this autumn!",
+    "body": "Registration is officially open for the next iteration of developers gathering online. Check out our breakout panel schedule for advanced continuous integration automation techniques, software design patterns, and container virtualization modules.",
+    "received_at": "2026-06-12T16:45:00Z"
+  },
+  {
+    "msg_id": "msg_003_2026",
+    "sender": "devops-alerts@internal-monitor.net",
+    "subject": "CRITICAL CRASH: Production DB Replica-01 is UNREACHABLE",
+    "body": "Warning flag raised across internal container telemetry networks. Production database replica-01 has dropped connection streams with a non-zero exit state after an automated cluster health check failed. Master engine status degraded.",
+    "received_at": "2026-06-12T17:30:00Z"
+  }
+]
