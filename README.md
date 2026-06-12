@@ -31,7 +31,7 @@ Full legal terms (This project is protected under a custom proprietary license).
 
 👤 Author
 
-Golam Ahmed Mugdha
+Golam Ahmed Mugdha |
 Junior Software Engineer | Backend & AI Systems
 Focused on scalable automation, AI agents, and intelligent backend architectures.
 
