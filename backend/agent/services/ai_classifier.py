@@ -1,83 +1,73 @@
 import os
-from typing import Literal, Any, cast
+import json
+from typing import Literal, Any
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
+from langchain_core.output_parsers import JsonOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 from decouple import config
 
-# 1. Define response schema shape
 class EmailAnalysis(BaseModel):
-    important: bool = Field(
-        description="Set to true ONLY if the email requires immediate action like client complaints, billing issues, infrastructure crashes, or urgent requests. Set to false for newsletters, promotions, or spam."
-    )
-    priority: Literal["HIGH", "MEDIUM", "LOW"] = Field(
-        description="HIGH for system crashes or payment blockages; MEDIUM for client tickets/complaints; LOW for normal updates."
-    )
-    category: str = Field(
-        description="A clear, short keyword in uppercase, e.g., PAYMENT_ISSUE, SERVER_DOWN, CLIENT_COMPLAINT, SPAM, MARKETING."
-    )
-    reason: str = Field(
-        description="A single clear sentence explaining exactly why this email was or wasn't flagged as important."
-    )
+    important: bool = Field(description="True if critical request/failure, false otherwise")
+    priority: Literal["HIGH", "MEDIUM", "LOW"] = Field(description="HIGH, MEDIUM, or LOW")
+    category: str = Field(description="Short uppercase string keyword")
+    reason: str = Field(description="One sentence rationale string")
 
 class AIClassifierService:
     def __init__(self):
-        # Retrieve the API key from python-decouple safely
         api_key = config("GEMINI_API_KEY", default=None)
         
-        # # type: ignore tells Pylance to skip signature mismatches caused by underlying Google SDK dynamic params
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash", 
+            model="models/gemini-2.5-flash", 
             google_api_key=api_key,
             temperature=0.0
-        )  # type: ignore
+        ) # type: ignore
         
-        # FIX: We cast the class blueprint itself to Any inside the method parameter slot.
-        # This bypasses the structural schema mismatch error perfectly while preserving runtime schema execution.
-        self.structured_llm: Runnable[Any, EmailAnalysis] = cast(
-            Runnable[Any, EmailAnalysis],
-            self.llm.with_structured_output(cast(Any, EmailAnalysis))
-        )
+        # Fallback to a bulletproof native JSON output parser
+        self.parser = JsonOutputParser(pydantic_object=EmailAnalysis)
         
-        # Build strict system guardrails into the prompt context
         self.prompt_template = ChatPromptTemplate.from_messages([
             ("system", (
                 "You are an expert AI Operations Engineer triaging incoming system emails.\n"
-                "Analyze the sender, subject, and body to produce structural attributes.\n\n"
+                "Analyze the email input and provide structured taxonomy metrics matching the schema specifications.\n\n"
                 "CRITICAL TAXONOMY RULES:\n"
                 "- Flag 'important: true' for customer distress, payment failures, or critical downtime alerts.\n"
-                "- Flag 'important: false' for subscription updates, generalized tech news, and spam."
+                "- Flag 'important: false' for subscription updates, generalized tech news, and spam.\n\n"
+                "OUTPUT INSTRUCTIONS:\n{format_instructions}"
             )),
             ("human", "SENDER: {sender}\nSUBJECT: {subject}\nBODY:\n{body}")
         ])
         
-        self.chain = self.prompt_template | self.structured_llm
+        self.chain = self.prompt_template | self.llm | self.parser
 
     def analyze_email(self, sender: str, subject: str, body: str) -> EmailAnalysis:
-        """
-        Processes an email body text through Gemini using structured output logic.
-        Falls back smoothly to a programmatic rule engine if no API key is specified.
-        """
         api_key = config("GEMINI_API_KEY", default=None)
         if not api_key or api_key == "your_actual_gemini_api_key_here":
             return self._rule_based_fallback(subject)
             
         try:
-            return self.chain.invoke({
+            instructions = self.parser.get_format_instructions()
+            raw_result = self.chain.invoke({
                 "sender": sender,
                 "subject": subject,
-                "body": body
+                "body": body,
+                "format_instructions": instructions
             })
+            
+            return EmailAnalysis(
+                important=bool(raw_result.get("important", False)),
+                priority=raw_result.get("priority", "LOW"),
+                category=str(raw_result.get("category", "GENERAL")),
+                reason=str(raw_result.get("reason", "Processed by parser output structure node."))
+            )
         except Exception as e:
-            print(f"[AI SERVICE WARNING] Pipeline call failed, invoking deterministic backup rules: {e}")
+            print(f"[AI SERVICE WARNING] Pipeline exception, invoking backup: {e}")
             return self._rule_based_fallback(subject)
 
     def _rule_based_fallback(self, subject: str) -> EmailAnalysis:
-        """Deterministic programmatic rule-engine fallback for safety or offline mock execution."""
         sub_lower = subject.lower()
         if "chargeback" in sub_lower or "failure" in sub_lower:
             return EmailAnalysis(important=True, priority="HIGH", category="PAYMENT_ISSUE", reason="Rule Engine: Flagged due to payment crisis keywords.")
         if "crash" in sub_lower or "unreachable" in sub_lower:
             return EmailAnalysis(important=True, priority="HIGH", category="SERVER_DOWN", reason="Rule Engine: Flagged due to critical server downtime terminology.")
-        return EmailAnalysis(important=False, priority="LOW", category="MARKETING", reason="Rule Engine: Identified as regular informational/subscription update.")
+        return EmailAnalysis(important=False, priority="LOW", category="MARKETING", reason="Rule Engine: Identified as regular informational update.")
