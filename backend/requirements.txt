@@ -1,0 +1,20 @@
+# Core Framework & API
+Django==5.0.6
+djangorestframework==3.15.1
+django-cors-headers==4.3.1
+
+# Real-Time Async Infrastructure (WebSockets)
+channels==4.1.0
+channels-redis==4.2.1
+daphne==4.1.2
+
+# AI Agent Framework & Schema Validation (Updated for Python 3.13 stability)
+langchain-core==0.2.7
+langchain-google-genai==1.0.6
+pydantic==2.10.0-beta1
+
+# Environment Variable & Secret Management
+python-dotenv==1.0.1
+
+# Development & Networking Utility
+requests==2.32.3

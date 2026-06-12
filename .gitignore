@@ -1,0 +1,19 @@
+# Python bytecode and cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local virtual environment files
+env/
+venv/
+.env/
+
+# Secrets and credentials configuration file (CRITICAL)
+.env
+
+# Database binaries
+*.sqlite3
+
+# IDE config files
+.vscode/
+.idea/

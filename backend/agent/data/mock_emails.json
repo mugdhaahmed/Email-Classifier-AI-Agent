@@ -1,0 +1,30 @@
+[
+  {
+    "email_id": "msg_001_2026",
+    "sender": "billing@stripe-alerts.com",
+    "subject": "URGENT: Chargeback settlement failure for account #4920",
+    "body": "We were unable to process your recent payout balance due to an active dispute on invoice 9402. Please update your compliance documentation immediately to avoid terminal suspension.",
+    "received_at": "2026-06-12T10:00:00Z"
+  },
+  {
+    "email_id": "msg_002_2026",
+    "sender": "noreply@github-marketing.com",
+    "subject": "Discover the new GitHub Universe schedule for this autumn!",
+    "body": "Hey developer! Early bird tickets are now available for GitHub Universe. Sign up now to catch keynotes on advanced copilot features and workspace adjustments.",
+    "received_at": "2026-06-12T11:15:00Z"
+  },
+  {
+    "email_id": "msg_003_2026",
+    "sender": "devops-alerts@internal-monitor.net",
+    "subject": "CRITICAL CRASH: Production DB Replica-01 is UNREACHABLE",
+    "body": "Health check failed for database instance replica-01. Connection timeouts exceeding 5000ms. Automated failover did not initialize properly. Main system status: degraded.",
+    "received_at": "2026-06-12T11:30:00Z"
+  },
+  {
+    "email_id": "msg_001_2026",
+    "sender": "billing@stripe-alerts.com",
+    "subject": "URGENT: Chargeback settlement failure for account #4920",
+    "body": "We were unable to process your recent payout balance due to an active dispute on invoice 9402. Please update your compliance documentation immediately to avoid terminal suspension.",
+    "received_at": "2026-06-12T10:00:00Z"
+  }
+]
