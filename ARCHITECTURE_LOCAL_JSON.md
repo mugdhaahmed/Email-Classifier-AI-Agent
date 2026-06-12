@@ -1,87 +1,85 @@
 ⚠️ PROPRIETARY CODE — UNAUTHORIZED USE PROHIBITED
 
-# 📧 Email Classifier AI Agent
+# 📄 Architecture — Local JSON Email Ingestion
 
-An automated, asynchronous AI-powered pipeline designed to ingest emails or system-like messages, execute deterministic structural classification using an LLM engine, and stream only **important, high-signal events** to a real-time React dashboard—while silently filtering background noise.
+This document describes the **local JSON–based ingestion architecture** of the Email Classifier AI Agent.
 
-This project demonstrates a **production-style AI agent architecture** combining background workers, strict schema-bound AI inference, idempotent processing, and WebSocket-based live UI updates.
+This implementation exists to:
+- Validate the core system architecture
+- Demonstrate deterministic AI classification
+- Simulate production-style message pipelines using static data
 
----
-
-## 🚀 Project Overview
-
-The Email Classifier AI Agent continuously processes incoming messages (mock emails/logs), classifies them using a low-temperature LLM, and:
-
-- Detects **important vs non-important** messages
-- Assigns **priority levels** (HIGH / MEDIUM / LOW)
-- Categorizes events (e.g., BILLING, DATABASE, SYSTEM)
-- Streams critical items to a live dashboard in real time
-- Drops low-value noise automatically
-
-The system is intentionally **decoupled** into ingestion, inference, and synchronization layers to reflect real production pipelines.
+⚠️ This file is **strictly limited to JSON-based ingestion**.  
+Core system concepts are documented separately in `CORE_ARCHITECTURE.md`.
 
 ---
 
-## 🗂 Repository Structure
-📦 Email-Classifier-AI-Agent
-┣ 📂 backend
-┃ ┣ 📂 agent
-┃ ┃ ┣ 📂 management
-┃ ┃ ┃ ┣ 📂 commands
-┃ ┃ ┃ ┃ ┗ pipeline_worker.py
-┃ ┃ ┣ 📂 services
-┃ ┃ ┃ ┗ ai_classifier.py
-┃ ┣ 📂 core
-┃ ┃ ┗ asgi.py
-┃ ┣ manage.py
-┃ ┗ requirements.txt
-┣ 📂 frontend
-┃ ┣ src/
-┃ ┣ package.json
-┃ ┗ …
-┣ .gitignore
-┗ ARCHITECTURE_LOCAL_JSON_README.md
+## 🎯 Purpose of Local JSON Architecture
 
+The local JSON ingestion mode is designed for:
+
+- Local development
+- Testing AI determinism
+- Demonstrating idempotent pipelines
+- Architectural proof-of-concept
+
+It intentionally mimics production queue behavior while remaining file-based.
 
 ---
 
-## 🛠️ System Architecture & Engineering Breakdown
+## 📂 JSON Data Source Definition
 
-The platform is divided into three independent but coordinated layers:
+- **Input File:** `mock_emails.json`
+- **Execution Model:** Sequential background polling
+- **Processing Mode:** Exactly-once (idempotent)
+- **Environment:** Local development
+
+Each record in the JSON file represents a single logical email or system message.
 
 ---
 
-### 1️⃣ Ingestion Engine  
-**File:** `backend/agent/management/commands/pipeline_worker.py`
+## 🧩 JSON Ingestion Engine
 
-- Runs as a **continuous background worker**
-- Simulates real production queue polling
-- Iterates sequentially through message datasets (e.g., `mock_emails.json`)
-- Designed to run independently from the web server
-- Prevents duplicate processing using persistent storage checks
+**File Location**
+backend/agent/services/pipeline_worker.py
 
-**Duplicate Prevention Logic (Idempotency):**
-```python
-if ProcessedEmail.objects.filter(message_id=email_id).exists():
+### Responsibilities
+
+- Load and parse `mock_emails.json`
+- Iterate messages sequentially
+- Normalize JSON records into internal message objects
+- Trigger AI classification
+- Persist processed message state
+
+This worker runs independently from the web server.
+
+---
+
+## 🛡️ Idempotency & Duplicate Prevention
+
+Each JSON record must contain a **globally unique identifier**:
+
+```json
+{
+  "msg_id": "unique_message_identifier"
+}
+
+- Guard Logic
+- if ProcessedEmail.objects.filter(message_id=email_id).exists():
     continue
+- Guarantees
+- Messages are processed exactly once
+- Worker restarts do not reprocess data
+- Safe for long-running background execution
+- Matches production reliability expectations
 
-This ensures:
+---
 
-Messages are processed exactly once
-Restarts do not cause re-classification
-Production-grade reliability
+## 🧠 AI Classification (JSON Context)
 
-2️⃣ AI Classification & Triage Layer
+Each JSON message is passed to the AI classification layer using the standard schema contract.
 
-File: backend/agent/services/ai_classifier.py
-
-This layer communicates with the LLM and enforces strict determinism.
-
-Key Design Choices:
-Low temperature (temperature = 0.0) to avoid randomness
-Schema-locked JSON output
-Structural validation before database persistence
-Classification Output Contract:
+Output Contract
 {
   "important": true,
   "priority": "HIGH",
@@ -89,90 +87,38 @@ Classification Output Contract:
   "reason": "Payment failure detected with financial impact"
 }
 
-Fields Explained:
-important (boolean)
-Determines whether the message is surfaced or dropped.
-priority (enum)
-One of HIGH, MEDIUM, LOW.
-category (string)
-Logical classification such as DATABASE, BILLING, SECURITY.
-reason (string)
-Human-readable justification generated by the AI.
-Fail-Safe Mechanism:
+### Field Semantics:
+- important (boolean) -> Determines whether the message is surfaced or dropped.
+- priority (enum) -> One of HIGH, MEDIUM, LOW.
+- category (string) -> Logical grouping such as BILLING, DATABASE, SYSTEM.
+- reason (string) -> Human-readable justification generated by the AI.
 
-If the LLM API is unavailable, a local rule-based fallback engine detects known critical patterns (e.g., crashes, outages) to ensure zero blind spots.
+- Low-importance messages are silently discarded and never reach the UI.
 
+### 🔬 Example Classification Outcomes:
 
-3️⃣ Real-Time Synchronization Layer
-
-File: backend/core/asgi.py
-
-Powered by ASGI (Daphne/Uvicorn compatible)
-Maintains persistent WebSocket connections
-Broadcasts newly classified important messages instantly
-Eliminates the need for page refreshes in the UI
+| Message ID | Source / Subject                                                                           | AI Decision           | Result            |
+| ---------- | ------------------------------------------------------------------------------------------ | --------------------- | ----------------- |
+| `msg_001`  | [billing@stripe-alerts.com](mailto:billing@stripe-alerts.com) — Chargeback failure         | important: true, HIGH | Sent to dashboard |
+| `msg_002`  | [noreply@github.com](mailto:noreply@github.com) — Product updates                          | important: false      | Dropped           |
+| `msg_003`  | [devops-alerts@internal-monitor.net](mailto:devops-alerts@internal-monitor.net) — DB crash | important: true, HIGH | Sent to dashboard |
 
 
-🔬 Local Test Ingestion Metrics
+---
 
-Using a mock dataset such as mock_emails.json, the system behaves as follows:
-
-| Message ID | Source / Subject                                                                                      | AI Decision                       | Dashboard Action   |
-| ---------- | ----------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------ |
-| `msg_001`  | [billing@stripe-alerts.com](mailto:billing@stripe-alerts.com) – *URGENT: Chargeback failure*          | important: true<br>Priority: HIGH | Rendered instantly |
-| `msg_002`  | [noreply@github.com](mailto:noreply@github.com) – *New product updates*                               | important: false                  | Silently dropped   |
-| `msg_003`  | [devops-alerts@internal-monitor.net](mailto:devops-alerts@internal-monitor.net) – *CRITICAL DB Crash* | important: true<br>Priority: HIGH | Rendered instantly |
-
-
-
-📥 Installation & Local Setup
-1️⃣ Backend Setup
-cd backend
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-Create a .env file inside /backend:
-
-GEMINI_API_KEY=your_actual_gemini_api_key_here
-SECRET_KEY=your_django_secret_key_here
-DEBUG=True
-
-Run migrations and start the server:
-
-python manage.py migrate
-python manage.py runserver
-
-Start the background ingestion worker:
-python manage.py pipeline_worker
-
-2️⃣ Frontend Setup
-cd frontend
-npm install
-npm start
-
-The dashboard runs by default at:
-
-http://localhost:3000
-3️⃣ ASGI / WebSocket Server
-
-For production-style async handling:
-
-daphne -p 8000 core.asgi:application
-🧠 Execution Flow Summary
-Background worker polls incoming messages
-Duplicate messages are skipped automatically
-Messages are classified using deterministic AI inference
-Important events are persisted and broadcast via WebSockets
-Frontend updates instantly without refresh
-Noise is silently discarded
-
-⚠️ Troubleshooting
-No AI output: Verify GEMINI_API_KEY
-No live updates: Check ASGI/WebSocket server
-Repeated messages: Ensure database migrations ran correctly
-Frontend empty: Confirm WebSocket connection and backend running
+## 🔄 Execution Flow (JSON Mode)
+- Background worker reads next JSON record
+- Idempotency guard checks prior processing
+- Message is classified using deterministic AI inference
+- Decision is validated and persisted
+- Important events are broadcast via WebSockets
+- Noise is silently ignored
 
 
-### 🔒 License & Usage Restrictions
-Read Lisence.md file
+---
+
+## 🔒 License
+
+This implementation is proprietary.
+
+See LICENSE.md for full usage restrictions.

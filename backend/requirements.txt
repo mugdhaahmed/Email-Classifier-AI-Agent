@@ -8,13 +8,16 @@ channels==4.1.0
 channels-redis==4.2.1
 daphne==4.1.2
 
+# Production Process Gateway Management
+gunicorn==21.2.0
+
 # AI Agent Framework & Schema Validation (Updated for Python 3.13 stability)
 langchain-core==0.2.7
 langchain-google-genai==1.0.6
 pydantic==2.10.0-beta1
 
 # Environment Variable & Secret Management
-python-dotenv==1.0.1
+django-environ==0.11.2
 
 # Development & Networking Utility
 requests==2.32.3
