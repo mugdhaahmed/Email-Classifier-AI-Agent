@@ -100,7 +100,9 @@ Each JSON message is passed to the AI classification layer as defined in [CORE_A
 }
 ```
 
-**Fallback behavior:** If the Gemini API is unavailable, the classifier falls back to keyword-based rule matching (e.g., `chargeback`, `failure`, `crash`, `unreachable`) to ensure uninterrupted operation.
+The `category` is one of the fixed taxonomy values: `SECURITY`, `BILLING`, `SYSTEM_ALERT`, `SUPPORT`, `SALES`, `RECRUITMENT`, `NEWSLETTER`, `PROMOTION`, `SOCIAL`, `LEGAL`, `PERSONAL`, `SPAM`, `OTHER`.
+
+**Fallback behavior:** If the Gemini API is unavailable or rate-limited, the classifier fails fast to a keyword-based rule engine (matching terms like `security`, `chargeback`, `outage`, `job`, `newsletter`) so the pipeline never stalls.
 
 ---
 
@@ -110,12 +112,12 @@ The following outcomes are produced from the records in `mock_emails.json`, whic
 
 | Message ID | Sender / Subject | AI Decision | Result |
 |---|---|---|---|
-| `msg_001_2026` | `billing@stripe-alerts.com` — Chargeback settlement failure | `important: true`, `HIGH`, `PAYMENT_ISSUE` | Persisted + pushed to dashboard |
-| `msg_002_2026` | `noreply@github-marketing.com` — GitHub Universe newsletter | `important: true`, `LOW`, `SUBSCRIPTION` | Persisted + pushed to dashboard |
-| `msg_003_2026` | `devops-alerts@internal-monitor.net` — Production DB crash | `important: true`, `HIGH`, `SERVER_DOWN` | Persisted + pushed to dashboard |
-| `msg_004_2026` | `angry.customer@acme-corp.com` — Service down, refund demand | `important: true`, `HIGH`, `CLIENT_COMPLAINT` | Persisted + pushed to dashboard |
-| `msg_005_2026` | `support-request@bluewave-clients.com` — CSV export question | `important: true`, `MEDIUM`, `CLIENT_COMPLAINT` | Persisted + pushed to dashboard |
-| `msg_006_2026` | `newsletter@devweekly.io` — Weekly dev digest | `important: true`, `LOW`, `SUBSCRIPTION` | Persisted + pushed to dashboard |
+| `msg_001_2026` | `billing@stripe-alerts.com` — Chargeback settlement failure | `important: true`, `HIGH`, `BILLING` | Persisted + pushed to dashboard |
+| `msg_002_2026` | `noreply@github-marketing.com` — GitHub Universe newsletter | `important: true`, `LOW`, `NEWSLETTER` | Persisted + pushed to dashboard |
+| `msg_003_2026` | `devops-alerts@internal-monitor.net` — Production DB crash | `important: true`, `HIGH`, `SYSTEM_ALERT` | Persisted + pushed to dashboard |
+| `msg_004_2026` | `angry.customer@acme-corp.com` — Service down, refund demand | `important: true`, `HIGH`, `SUPPORT` | Persisted + pushed to dashboard |
+| `msg_005_2026` | `support-request@bluewave-clients.com` — CSV export question | `important: true`, `MEDIUM`, `SUPPORT` | Persisted + pushed to dashboard |
+| `msg_006_2026` | `newsletter@devweekly.io` — Weekly dev digest | `important: true`, `LOW`, `NEWSLETTER` | Persisted + pushed to dashboard |
 | `msg_007_2026` | `winner@free-prizes-now.biz` — "You WON a $1000 gift card" | `important: false`, `SPAM` | Silently discarded |
 | `msg_001_2026` | *(duplicate of msg_001)* | — | Skipped by idempotency guard |
 

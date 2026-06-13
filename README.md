@@ -47,16 +47,16 @@ For every email, the AI produces a structured decision:
 {
   "important": true,
   "priority": "HIGH",
-  "category": "PAYMENT_ISSUE",
-  "reason": "A chargeback dispute threatens account suspension and requires immediate action."
+  "category": "SECURITY",
+  "reason": "A new sign-in alert indicates possible unauthorized account access and needs immediate attention."
 }
 ```
 
 | Field | Meaning |
 |---|---|
 | `important` | `true` → shown on dashboard · `false` → silently dropped (pure spam only) |
-| `priority` | `HIGH` (payment/outage/urgent complaint), `MEDIUM` (non-urgent request), `LOW` (newsletters/automated) |
-| `category` | One of `PAYMENT_ISSUE`, `SERVER_DOWN`, `CLIENT_COMPLAINT`, `SUBSCRIPTION`, `SPAM` |
+| `priority` | `HIGH` (security/billing/outage/urgent), `MEDIUM` (routine requests, legal, personal), `LOW` (newsletters/promotions/social) |
+| `category` | One of `SECURITY`, `BILLING`, `SYSTEM_ALERT`, `SUPPORT`, `SALES`, `RECRUITMENT`, `NEWSLETTER`, `PROMOTION`, `SOCIAL`, `LEGAL`, `PERSONAL`, `SPAM`, `OTHER` |
 | `reason` | A human-readable sentence justifying the decision |
 
 **What gets flagged as important:** client complaints and urgent requests, payment/billing issues, system outages, and low-priority automated/subscription emails (shown with `LOW` priority). Only pure spam is dropped.
