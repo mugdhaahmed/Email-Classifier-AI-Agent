@@ -8,9 +8,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from decouple import config
 
 class EmailAnalysis(BaseModel):
-    important: bool = Field(description="True if critical request/failure, false otherwise")
+    important: bool = Field(description="True if the email is worth surfacing to the user, false only for pure spam")
     priority: Literal["HIGH", "MEDIUM", "LOW"] = Field(description="HIGH, MEDIUM, or LOW")
-    category: str = Field(description="Short uppercase string keyword")
+    category: Literal[
+        "PAYMENT_ISSUE", "SERVER_DOWN", "CLIENT_COMPLAINT", "SUBSCRIPTION", "SPAM"
+    ] = Field(description="One of the fixed taxonomy categories")
     reason: str = Field(description="One sentence rationale string")
 
 class AIClassifierService:
@@ -28,11 +30,26 @@ class AIClassifierService:
         
         self.prompt_template = ChatPromptTemplate.from_messages([
             ("system", (
-                "You are an expert AI Operations Engineer triaging incoming system emails.\n"
-                "Analyze the email input and provide structured taxonomy metrics matching the schema specifications.\n\n"
-                "CRITICAL TAXONOMY RULES:\n"
-                "- Flag 'important: true' for customer distress, payment failures, or critical downtime alerts.\n"
-                "- Flag 'important: false' for subscription updates, generalized tech news, and spam.\n\n"
+                "You are an expert AI Operations Engineer triaging incoming business emails.\n"
+                "Read the sender, subject, and body, then reason about how the user should treat this email.\n"
+                "Return a structured decision that matches the schema specifications.\n\n"
+                "IMPORTANCE RULES:\n"
+                "- 'important: true' for anything the user should see on their dashboard. This includes:\n"
+                "    * Client complaints or urgent customer requests\n"
+                "    * Payment failures or billing issues\n"
+                "    * Critical system downtime or server alerts\n"
+                "    * Low-priority automated or subscription emails (these are still shown, just low priority)\n"
+                "- 'important: false' ONLY for pure spam or junk with no business value.\n\n"
+                "PRIORITY RULES:\n"
+                "- HIGH  -> payment failures, server outages, urgent client complaints\n"
+                "- MEDIUM-> non-urgent client requests or issues needing follow-up\n"
+                "- LOW   -> automated notices, newsletters, subscription updates\n\n"
+                "CATEGORY RULES (choose exactly one):\n"
+                "- PAYMENT_ISSUE    -> billing, invoices, chargebacks, payouts\n"
+                "- SERVER_DOWN      -> outages, crashes, downtime, health-check failures\n"
+                "- CLIENT_COMPLAINT -> customer complaints or urgent customer requests\n"
+                "- SUBSCRIPTION     -> newsletters, automated product/marketing updates\n"
+                "- SPAM             -> junk with no business value (pair with important: false)\n\n"
                 "OUTPUT INSTRUCTIONS:\n{format_instructions}"
             )),
             ("human", "SENDER: {sender}\nSUBJECT: {subject}\nBODY:\n{body}")
@@ -57,7 +74,7 @@ class AIClassifierService:
             return EmailAnalysis(
                 important=bool(raw_result.get("important", False)),
                 priority=raw_result.get("priority", "LOW"),
-                category=str(raw_result.get("category", "GENERAL")),
+                category=raw_result.get("category", "SUBSCRIPTION"),
                 reason=str(raw_result.get("reason", "Processed by parser output structure node."))
             )
         except Exception as e:
@@ -66,8 +83,12 @@ class AIClassifierService:
 
     def _rule_based_fallback(self, subject: str) -> EmailAnalysis:
         sub_lower = subject.lower()
-        if "chargeback" in sub_lower or "failure" in sub_lower:
+        if "chargeback" in sub_lower or "failure" in sub_lower or "billing" in sub_lower or "invoice" in sub_lower:
             return EmailAnalysis(important=True, priority="HIGH", category="PAYMENT_ISSUE", reason="Rule Engine: Flagged due to payment crisis keywords.")
-        if "crash" in sub_lower or "unreachable" in sub_lower:
+        if "crash" in sub_lower or "unreachable" in sub_lower or "down" in sub_lower or "outage" in sub_lower:
             return EmailAnalysis(important=True, priority="HIGH", category="SERVER_DOWN", reason="Rule Engine: Flagged due to critical server downtime terminology.")
-        return EmailAnalysis(important=False, priority="LOW", category="MARKETING", reason="Rule Engine: Identified as regular informational update.")
+        if "complaint" in sub_lower or "urgent" in sub_lower or "refund" in sub_lower or "not working" in sub_lower:
+            return EmailAnalysis(important=True, priority="MEDIUM", category="CLIENT_COMPLAINT", reason="Rule Engine: Flagged as a customer complaint or urgent request.")
+        if "unsubscribe" in sub_lower or "win" in sub_lower or "free" in sub_lower or "lottery" in sub_lower:
+            return EmailAnalysis(important=False, priority="LOW", category="SPAM", reason="Rule Engine: Identified as junk with no business value.")
+        return EmailAnalysis(important=True, priority="LOW", category="SUBSCRIPTION", reason="Rule Engine: Low-priority automated or subscription update.")

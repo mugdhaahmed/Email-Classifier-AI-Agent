@@ -34,6 +34,53 @@ The result is a low-noise, real-time alert dashboard for emails that actually ma
 
 ---
 
+## How the AI Works
+
+Every email is passed through the classification service in [`ai_classifier.py`](backend/agent/services/ai_classifier.py), which uses a **hybrid approach**:
+
+1. **Primary — Google Gemini 2.5 Flash** (via LangChain) reads the sender, subject, and body and reasons about the email. It runs at `temperature=0.0` for deterministic, reproducible decisions, and its output is validated against a strict Pydantic schema.
+2. **Fallback — rule-based classifier.** If no API key is configured or the API call fails, a keyword-based engine takes over so the pipeline never stops.
+
+For every email, the AI produces a structured decision:
+
+```json
+{
+  "important": true,
+  "priority": "HIGH",
+  "category": "PAYMENT_ISSUE",
+  "reason": "A chargeback dispute threatens account suspension and requires immediate action."
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `important` | `true` → shown on dashboard · `false` → silently dropped (pure spam only) |
+| `priority` | `HIGH` (payment/outage/urgent complaint), `MEDIUM` (non-urgent request), `LOW` (newsletters/automated) |
+| `category` | One of `PAYMENT_ISSUE`, `SERVER_DOWN`, `CLIENT_COMPLAINT`, `SUBSCRIPTION`, `SPAM` |
+| `reason` | A human-readable sentence justifying the decision |
+
+**What gets flagged as important:** client complaints and urgent requests, payment/billing issues, system outages, and low-priority automated/subscription emails (shown with `LOW` priority). Only pure spam is dropped.
+
+## How the Dashboard Works
+
+The dashboard is a React single-page app that combines two data channels:
+
+1. **On load** — it fetches all previously stored important notifications from the REST endpoint `GET /api/notifications/` so the user sees history immediately.
+2. **Live** — it opens a persistent WebSocket to `/ws/emails/`. When the background worker classifies a new important email, the backend broadcasts it and the card appears on the dashboard instantly, with no refresh or polling.
+
+Each notification card displays all six required fields: **sender, subject, priority, category, AI reason, and time received.** Incoming events are de-duplicated by `email_id` in the client state, and the user can filter the view by priority (`HIGH` / `MEDIUM` / `LOW`).
+
+## Limitations
+
+This is a proof-of-concept. Known limitations:
+
+- **Mock data source.** The current ingestion reads from `mock_emails.json`. Gmail/IMAP adapters are designed for but not yet implemented (see [CORE_ARCHITECTURE.md](CORE_ARCHITECTURE.md)).
+- **In-memory channel layer.** WebSocket broadcasting uses Django Channels' in-memory backend, which works for a single process only. Production multi-worker deployments would need Redis (`channels-redis` is already in `requirements.txt`).
+- **SQLite database.** Fine for development; a production deployment should use PostgreSQL.
+- **Polling interval.** The worker polls every 2 minutes, so there is up to a 2-minute delay between an email arriving in the source and appearing on the dashboard.
+- **Dev server in Docker.** The frontend container runs the Vite dev server. A production setup would build static assets and serve them via Nginx.
+- **Gemini dependency.** Without a valid `GEMINI_API_KEY`, the system runs entirely on the rule-based fallback, which is less nuanced than the LLM.
+
 ## Tech Stack
 
 | Layer | Technology |

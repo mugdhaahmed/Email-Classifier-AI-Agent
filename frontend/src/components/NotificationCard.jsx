@@ -46,7 +46,7 @@ export default function NotificationCard({ alert }) {
       <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
         <span>Received Axis</span>
         <span className="font-mono text-slate-500">
-          ⏰ {new Date(alert.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          ⏰ {new Date(alert.received_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
     </div>

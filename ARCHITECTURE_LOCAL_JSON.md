@@ -35,7 +35,7 @@ Each record in the JSON file represents a single email message. The file intenti
 
 ```json
 {
-  "msg_id": "msg_001_2026",
+  "email_id": "msg_001_2026",
   "sender": "billing@stripe-alerts.com",
   "subject": "URGENT: Chargeback settlement failure — Action required",
   "body": "A chargeback has been initiated on transaction #TXN-8821...",
@@ -67,10 +67,10 @@ The pipeline worker runs as a background thread, started automatically when Djan
 
 ## Idempotency & Duplicate Prevention
 
-Each JSON record must contain a globally unique `msg_id`. Before classification, the worker checks this ID against the `ProcessedEmail` database table:
+Each JSON record must contain a globally unique `email_id`. Before classification, the worker checks this ID against the `ProcessedEmail` database table:
 
 ```python
-if ProcessedEmail.objects.filter(message_id=email_id).exists():
+if ProcessedEmail.objects.filter(email_id=email_id).exists():
     continue  # already processed — skip
 ```
 
@@ -106,13 +106,17 @@ Each JSON message is passed to the AI classification layer as defined in [CORE_A
 
 ## Example Classification Outcomes
 
-The following outcomes are produced from the four records in `mock_emails.json`:
+The following outcomes are produced from the records in `mock_emails.json`, which are designed to exercise every category, every priority level, the spam-drop path, and the duplicate guard:
 
 | Message ID | Sender / Subject | AI Decision | Result |
 |---|---|---|---|
-| `msg_001_2026` | `billing@stripe-alerts.com` — Chargeback failure | `important: true`, `HIGH`, `BILLING` | Persisted + pushed to dashboard |
-| `msg_002_2026` | `noreply@github.com` — GitHub Universe newsletter | `important: false` | Silently discarded |
-| `msg_003_2026` | `devops-alerts@internal-monitor.net` — DB crash | `important: true`, `HIGH`, `SYSTEM` | Persisted + pushed to dashboard |
+| `msg_001_2026` | `billing@stripe-alerts.com` — Chargeback settlement failure | `important: true`, `HIGH`, `PAYMENT_ISSUE` | Persisted + pushed to dashboard |
+| `msg_002_2026` | `noreply@github-marketing.com` — GitHub Universe newsletter | `important: true`, `LOW`, `SUBSCRIPTION` | Persisted + pushed to dashboard |
+| `msg_003_2026` | `devops-alerts@internal-monitor.net` — Production DB crash | `important: true`, `HIGH`, `SERVER_DOWN` | Persisted + pushed to dashboard |
+| `msg_004_2026` | `angry.customer@acme-corp.com` — Service down, refund demand | `important: true`, `HIGH`, `CLIENT_COMPLAINT` | Persisted + pushed to dashboard |
+| `msg_005_2026` | `support-request@bluewave-clients.com` — CSV export question | `important: true`, `MEDIUM`, `CLIENT_COMPLAINT` | Persisted + pushed to dashboard |
+| `msg_006_2026` | `newsletter@devweekly.io` — Weekly dev digest | `important: true`, `LOW`, `SUBSCRIPTION` | Persisted + pushed to dashboard |
+| `msg_007_2026` | `winner@free-prizes-now.biz` — "You WON a $1000 gift card" | `important: false`, `SPAM` | Silently discarded |
 | `msg_001_2026` | *(duplicate of msg_001)* | — | Skipped by idempotency guard |
 
 ---

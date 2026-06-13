@@ -21,6 +21,34 @@
     "received_at": "2026-06-12T11:30:00Z"
   },
   {
+    "email_id": "msg_004_2026",
+    "sender": "angry.customer@acme-corp.com",
+    "subject": "Complaint: Your service has been down all morning and I need a refund",
+    "body": "This is the third time this month your platform has failed during our business hours. We have lost orders because of this. I expect an explanation and a refund for this billing cycle immediately, or we will be cancelling our contract.",
+    "received_at": "2026-06-12T12:05:00Z"
+  },
+  {
+    "email_id": "msg_005_2026",
+    "sender": "support-request@bluewave-clients.com",
+    "subject": "Question about exporting reports to CSV",
+    "body": "Hi team, when you get a chance could you let me know if there is a way to export the monthly analytics report to CSV? Not urgent, just planning ahead for our quarterly review. Thanks!",
+    "received_at": "2026-06-12T13:20:00Z"
+  },
+  {
+    "email_id": "msg_006_2026",
+    "sender": "newsletter@devweekly.io",
+    "subject": "Your Weekly Dev Digest: 5 articles on async Python",
+    "body": "This week's hand-picked reads cover asyncio patterns, FastAPI tips, and a deep dive into Django Channels. Happy reading and have a great week!",
+    "received_at": "2026-06-12T14:00:00Z"
+  },
+  {
+    "email_id": "msg_007_2026",
+    "sender": "winner@free-prizes-now.biz",
+    "subject": "CONGRATULATIONS!!! You have WON a $1000 gift card - claim FREE now",
+    "body": "You are our lucky winner today! Click the link below within 24 hours to claim your free $1000 gift card. No purchase necessary. Act fast before it expires!",
+    "received_at": "2026-06-12T14:45:00Z"
+  },
+  {
     "email_id": "msg_001_2026",
     "sender": "billing@stripe-alerts.com",
     "subject": "URGENT: Chargeback settlement failure for account #4920",
