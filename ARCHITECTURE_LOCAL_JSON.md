@@ -1,124 +1,161 @@
-⚠️ PROPRIETARY CODE — UNAUTHORIZED USE PROHIBITED
+> ⚠️ **PROPRIETARY CODE — UNAUTHORIZED USE PROHIBITED.** See [LICENSE.md](LICENSE.md).
 
-# 📄 Architecture — Local JSON Email Ingestion
+# Architecture — Local JSON Ingestion
 
-This document describes the **local JSON–based ingestion architecture** of the Email Classifier AI Agent.
+This document describes the **local JSON-based ingestion implementation** of the AI Email Agent.
 
-This implementation exists to:
-- Validate the core system architecture
-- Demonstrate deterministic AI classification
-- Simulate production-style message pipelines using static data
-
-⚠️ This file is **strictly limited to JSON-based ingestion**.  
-Core system concepts are documented separately in `CORE_ARCHITECTURE.md`.
+> This document covers only the JSON-specific layer. Core system concepts — AI classification, real-time synchronization, and design principles — are documented in [CORE_ARCHITECTURE.md](CORE_ARCHITECTURE.md).
 
 ---
 
-## 🎯 Purpose of Local JSON Architecture
+## Purpose
 
-The local JSON ingestion mode is designed for:
+The local JSON ingestion mode exists to:
 
-- Local development
-- Testing AI determinism
-- Demonstrating idempotent pipelines
-- Architectural proof-of-concept
+- Validate and demonstrate the core pipeline architecture without external dependencies
+- Test deterministic AI classification against a controlled, reproducible dataset
+- Simulate production-style queue behavior using a static file
 
-It intentionally mimics production queue behavior while remaining file-based.
-
----
-
-## 📂 JSON Data Source Definition
-
-- **Input File:** `mock_emails.json`
-- **Execution Model:** Sequential background polling
-- **Processing Mode:** Exactly-once (idempotent)
-- **Environment:** Local development
-
-Each record in the JSON file represents a single logical email or system message.
+It intentionally mirrors how a production ingestion adapter would behave, making it a direct stand-in for IMAP or webhook sources during development.
 
 ---
 
-## 🧩 JSON Ingestion Engine
+## Data Source
 
-**File Location**
-backend/agent/services/pipeline_worker.py
+| Property | Value |
+|---|---|
+| Input file | `backend/agent/data/mock_emails.json` |
+| Processing model | Sequential background polling |
+| Processing guarantee | Exactly-once (idempotent) |
+| Environment | Local development (`MOCK_MODE=True`) |
 
-### Responsibilities
+Each record in the JSON file represents a single email message. The file intentionally includes one duplicate record to verify idempotency behavior.
 
-- Load and parse `mock_emails.json`
-- Iterate messages sequentially
-- Normalize JSON records into internal message objects
-- Trigger AI classification
-- Persist processed message state
-
-This worker runs independently from the web server.
-
----
-
-## 🛡️ Idempotency & Duplicate Prevention
-
-Each JSON record must contain a **globally unique identifier**:
+**Record structure:**
 
 ```json
 {
-  "msg_id": "unique_message_identifier"
+  "msg_id": "msg_001_2026",
+  "sender": "billing@stripe-alerts.com",
+  "subject": "URGENT: Chargeback settlement failure — Action required",
+  "body": "A chargeback has been initiated on transaction #TXN-8821...",
+  "received_at": "2026-06-12T10:00:00Z"
 }
-
-- Guard Logic
-- if ProcessedEmail.objects.filter(message_id=email_id).exists():
-    continue
-- Guarantees
-- Messages are processed exactly once
-- Worker restarts do not reprocess data
-- Safe for long-running background execution
-- Matches production reliability expectations
+```
 
 ---
 
-## 🧠 AI Classification (JSON Context)
+## Ingestion Engine
 
-Each JSON message is passed to the AI classification layer using the standard schema contract.
+**File:** [`backend/agent/services/pipeline_worker.py`](backend/agent/services/pipeline_worker.py)
 
-Output Contract
+The pipeline worker runs as a background thread, started automatically when Django boots (via `AppConfig.ready()`). It does not share the web server's request/response cycle.
+
+**Execution loop (every 2 minutes):**
+
+```
+1. Read and parse mock_emails.json
+2. For each record:
+   a. Check idempotency guard → skip if already processed
+   b. Pass message to AI classifier
+   c. If important: persist + broadcast via WebSocket
+   d. If not important: discard silently
+3. Sleep for 2 minutes, then repeat
+```
+
+---
+
+## Idempotency & Duplicate Prevention
+
+Each JSON record must contain a globally unique `msg_id`. Before classification, the worker checks this ID against the `ProcessedEmail` database table:
+
+```python
+if ProcessedEmail.objects.filter(message_id=email_id).exists():
+    continue  # already processed — skip
+```
+
+**Guarantees:**
+
+- Each message is classified exactly once
+- Worker restarts do not reprocess previously handled messages
+- The duplicate record in `mock_emails.json` is silently skipped on its second encounter
+- Behavior matches production-level reliability expectations
+
+---
+
+## AI Classification
+
+Each JSON message is passed to the AI classification layer as defined in [CORE_ARCHITECTURE.md](CORE_ARCHITECTURE.md). The classifier uses Google Gemini 2.5 Flash at `temperature=0.0` to ensure reproducible decisions.
+
+**File:** [`backend/agent/services/ai_classifier.py`](backend/agent/services/ai_classifier.py)
+
+**Output contract:**
+
+```json
 {
   "important": true,
   "priority": "HIGH",
   "category": "BILLING",
-  "reason": "Payment failure detected with financial impact"
+  "reason": "Payment failure detected with direct financial impact requiring immediate action."
 }
+```
 
-### Field Semantics:
-- important (boolean) -> Determines whether the message is surfaced or dropped.
-- priority (enum) -> One of HIGH, MEDIUM, LOW.
-- category (string) -> Logical grouping such as BILLING, DATABASE, SYSTEM.
-- reason (string) -> Human-readable justification generated by the AI.
-
-- Low-importance messages are silently discarded and never reach the UI.
-
-### 🔬 Example Classification Outcomes:
-
-| Message ID | Source / Subject                                                                           | AI Decision           | Result            |
-| ---------- | ------------------------------------------------------------------------------------------ | --------------------- | ----------------- |
-| `msg_001`  | [billing@stripe-alerts.com](mailto:billing@stripe-alerts.com) — Chargeback failure         | important: true, HIGH | Sent to dashboard |
-| `msg_002`  | [noreply@github.com](mailto:noreply@github.com) — Product updates                          | important: false      | Dropped           |
-| `msg_003`  | [devops-alerts@internal-monitor.net](mailto:devops-alerts@internal-monitor.net) — DB crash | important: true, HIGH | Sent to dashboard |
-
+**Fallback behavior:** If the Gemini API is unavailable, the classifier falls back to keyword-based rule matching (e.g., `chargeback`, `failure`, `crash`, `unreachable`) to ensure uninterrupted operation.
 
 ---
 
-## 🔄 Execution Flow (JSON Mode)
-- Background worker reads next JSON record
-- Idempotency guard checks prior processing
-- Message is classified using deterministic AI inference
-- Decision is validated and persisted
-- Important events are broadcast via WebSockets
-- Noise is silently ignored
+## Example Classification Outcomes
 
+The following outcomes are produced from the four records in `mock_emails.json`:
+
+| Message ID | Sender / Subject | AI Decision | Result |
+|---|---|---|---|
+| `msg_001_2026` | `billing@stripe-alerts.com` — Chargeback failure | `important: true`, `HIGH`, `BILLING` | Persisted + pushed to dashboard |
+| `msg_002_2026` | `noreply@github.com` — GitHub Universe newsletter | `important: false` | Silently discarded |
+| `msg_003_2026` | `devops-alerts@internal-monitor.net` — DB crash | `important: true`, `HIGH`, `SYSTEM` | Persisted + pushed to dashboard |
+| `msg_001_2026` | *(duplicate of msg_001)* | — | Skipped by idempotency guard |
 
 ---
 
-## 🔒 License
+## Execution Flow (JSON Mode)
 
-This implementation is proprietary.
+```
+mock_emails.json
+      │
+      ▼
+pipeline_worker.py (background thread)
+      │
+      ├─ msg_id in ProcessedEmail? ──Yes──► skip (silent)
+      │
+      No
+      │
+      ▼
+ai_classifier.py
+      │
+      ├─ important: false ──► discard (silent, nothing written)
+      │
+      └─ important: true
+            │
+            ├─ Write ProcessedEmail record (idempotency)
+            ├─ Write ImportantNotification record (storage)
+            └─ Broadcast via Django Channels WebSocket
+                        │
+                        ▼
+                 React dashboard
+                 (new card appears instantly)
+```
 
-See LICENSE.md for full usage restrictions.
+---
+
+## Database Models
+
+| Model | Purpose |
+|---|---|
+| `ProcessedEmail` | Stores processed `msg_id` values — the idempotency guard |
+| `ImportantNotification` | Stores classified important emails for REST API and dashboard display |
+
+---
+
+## License
+
+This implementation is proprietary. See [LICENSE.md](LICENSE.md) for full usage restrictions.

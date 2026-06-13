@@ -1,108 +1,154 @@
-⚠️ PROPRIETARY CODE — UNAUTHORIZED USE PROHIBITED
+> ⚠️ **PROPRIETARY CODE — UNAUTHORIZED USE PROHIBITED.** See [LICENSE.md](LICENSE.md).
 
-# 🧠 Core Architecture — Email Classifier AI Agent
+# Core Architecture — AI Email Agent
 
-This document describes the **core, data-source-agnostic architecture** of the Email Classifier AI Agent.
+This document describes the **core, data-source-agnostic architecture** of the AI Email Agent. It covers system design principles, execution flow, AI inference guarantees, and real-time synchronization mechanics.
 
-It focuses on:
-- System design principles
-- Execution flow
-- AI inference guarantees
-- Real-time synchronization mechanics
-
-⚠️ This file intentionally avoids referencing any specific input format (JSON, IMAP, SMTP, etc.).
+> This document intentionally avoids referencing any specific input format (JSON, IMAP, SMTP, webhooks, etc.). Each ingestion source has its own dedicated architecture document.
 
 ---
 
-## 🎯 Architectural Goals
+## Architectural Goals
 
-- Deterministic AI-driven classification
-- Production-grade idempotency
-- Noise-free signal extraction
-- Real-time UI observability
-- Decoupled, scalable components
-
----
-
-## 🏗️ High-Level System Layers
-
-The platform is divided into **three independent but coordinated layers**:
+| Goal | Description |
+|---|---|
+| **Deterministic classification** | AI produces the same decision for the same input, every time |
+| **Idempotency** | Every message is processed exactly once, even across restarts |
+| **Noise-free signal** | Unimportant messages are dropped before reaching storage or the UI |
+| **Real-time observability** | Important alerts surface on the dashboard the moment they are classified |
+| **Decoupled components** | Ingestion, classification, and presentation evolve independently |
 
 ---
 
-### 
-1️⃣ Ingestion Layer (Source-Agnostic)
+## System Layers
 
-**Responsibilities**
+The platform is divided into three independent but coordinated layers:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   LAYER 1: INGESTION                     │
+│              (Source-Agnostic Background Worker)         │
+│                                                          │
+│   Pull messages → Normalize → Idempotency check         │
+└───────────────────────────┬──────────────────────────────┘
+                            │ New, unique message
+                            ▼
+┌──────────────────────────────────────────────────────────┐
+│              LAYER 2: AI CLASSIFICATION                  │
+│         (Google Gemini · LangChain · Pydantic)           │
+│                                                          │
+│   Analyze → Validate schema → Assign priority            │
+└──────────────┬────────────────────────────┬──────────────┘
+               │ important: true            │ important: false
+               ▼                            ▼
+┌──────────────────────────┐         (silently discarded —
+│   LAYER 3: REAL-TIME     │          never stored, never
+│   SYNCHRONIZATION        │          reaches the UI)
+│   (Django Channels/ASGI) │
+│                          │
+│   Persist → Broadcast    │
+│   WebSocket → React UI   │
+└──────────────────────────┘
+```
+
+---
+
+### Layer 1 — Ingestion (Source-Agnostic)
+
+**Responsibilities:**
 - Continuously pull messages from an external source
-- Normalize raw input into internal message objects
-- Enforce idempotency before classification
-- Operate independently from the web server
+- Normalize raw input into a standard internal message object
+- Enforce idempotency before passing to classification
+- Run entirely in the background, independent of the web server
 
-**Design Principles**
-- Background execution
-- Restart-safe
-- Queue-like behavior
-- Exactly-once processing
+**Design properties:**
+- Background execution (does not block HTTP request handling)
+- Restart-safe (processes only messages not already seen)
+- Queue-like sequential behavior
+- Exactly-once processing guarantee
 
 ---
 
-### 
-2️⃣ AI Classification & Triage Layer
+### Layer 2 — AI Classification & Triage
 
-**Responsibilities**
-- Perform structural classification using an LLM
-- Enforce strict output schemas
+**Responsibilities:**
+- Analyze message content using an LLM
+- Produce a structured, schema-validated output
 - Assign importance, priority, and category
-- Generate transparent reasoning
-- Provide fail-safe behavior
+- Generate a human-readable reasoning string
+- Fall back to rule-based classification if the AI service is unavailable
 
-**Determinism Guarantees**
-- Low temperature inference (`temperature = 0.0`)
-- Schema-bound JSON parsing
-- Validation before persistence
+**Determinism guarantees:**
+- `temperature = 0.0` — identical inputs produce identical outputs
+- Schema-bound JSON parsing via Pydantic — malformed responses are rejected
+- Validation is enforced before any write to the database
 
-**Standard Output Contract**
+**Output contract:**
+
 ```json
 {
   "important": true,
   "priority": "HIGH",
-  "category": "SYSTEM",
-  "reason": "Critical system failure detected"
+  "category": "BILLING",
+  "reason": "Chargeback settlement failure detected with direct financial impact."
 }
+```
+
+| Field | Type | Values |
+|---|---|---|
+| `important` | boolean | `true` → surface to dashboard; `false` → discard |
+| `priority` | enum | `HIGH`, `MEDIUM`, `LOW` |
+| `category` | string | `BILLING`, `DATABASE`, `SYSTEM`, `MARKETING`, … |
+| `reason` | string | Human-readable AI-generated justification |
 
 ---
 
-### 3️⃣ Real-Time Synchronization Layer
+### Layer 3 — Real-Time Synchronization
 
-**Responsibilities**
+**Responsibilities:**
+- Maintain persistent WebSocket connections with connected clients
+- Broadcast newly classified important events immediately after persistence
+- Serve historical notifications via REST API on initial page load
+- Act as the live observability channel between backend and UI
 
-- Maintain persistent WebSocket connections
-- Broadcast newly classified important events
-- Enable instant UI updates without refresh
-- Act as a live observability channel
+**Core characteristics:**
+- ASGI-based (non-blocking, handles HTTP and WebSocket concurrently)
+- Event-driven (no polling — the backend pushes to clients)
+- Group-based broadcasting (all connected clients receive the same event)
 
-- Core Characteristics:
-- ASGI-based
-- Non-blocking
-- Event-driven
+---
 
+## End-to-End Execution Flow
 
-🔁 End-to-End Execution Flow
-- Ingestion layer fetches a new message
-- Idempotency guard prevents duplicates
-- AI classifier evaluates message structure
-- Decision is validated and persisted
-- Important events are broadcast in real time
-- Non-important events are silently discarded
+```
+1.  Ingestion worker fetches the next message from the source
+2.  Idempotency guard checks if the message ID has been seen before
+      └─ Duplicate → skip silently
+3.  Message is passed to the AI classifier
+4.  Classifier returns a structured, validated decision
+5.  Decision is evaluated:
+      ├─ important: false → message is discarded, nothing is written
+      └─ important: true  →
+            a. Mark message ID as processed (idempotency record)
+            b. Persist the notification to the database
+            c. Broadcast the notification via WebSocket to all clients
+6.  React dashboard receives the WebSocket event and renders the card
+```
 
+---
 
-🧩 Extensibility Philosophy
-- The architecture is intentionally designed to support multiple ingestion sources, such as:
-- Local JSON datasets
-- IMAP email servers
-- Webhooks
-- Streaming queues
+## Extensibility
 
+The core architecture is intentionally source-agnostic. Adding a new ingestion source (IMAP, webhook, streaming queue) requires only:
 
-<--- Each source introduces its own architecture file, without modifying this core document. --->
+1. A new ingestion adapter that normalizes messages into the standard internal object
+2. A new architecture document describing that specific implementation
+
+The classification layer, real-time layer, and UI are untouched.
+
+| Source | Status |
+|---|---|
+| Local JSON file | Implemented (see [ARCHITECTURE_LOCAL_JSON.md](ARCHITECTURE_LOCAL_JSON.md)) |
+| IMAP email server | Planned |
+| HTTP webhooks | Planned |
+| Message queues (Redis, SQS) | Planned |
