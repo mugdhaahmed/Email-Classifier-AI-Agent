@@ -11,6 +11,10 @@ venv/
 # Secrets and credentials configuration file (CRITICAL)
 .env
 
+# Gmail OAuth secrets (CRITICAL - never commit)
+credentials.json
+token.json
+
 # Database binaries
 *.sqlite3
 

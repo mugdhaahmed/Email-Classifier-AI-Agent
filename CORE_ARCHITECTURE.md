@@ -149,6 +149,7 @@ The classification layer, real-time layer, and UI are untouched.
 | Source | Status |
 |---|---|
 | Local JSON file | Implemented (see [ARCHITECTURE_LOCAL_JSON.md](ARCHITECTURE_LOCAL_JSON.md)) |
+| Gmail API | Implemented (see [ARCHITECTURE_GMAIL.md](ARCHITECTURE_GMAIL.md)) |
 | IMAP email server | Planned |
 | HTTP webhooks | Planned |
 | Message queues (Redis, SQS) | Planned |

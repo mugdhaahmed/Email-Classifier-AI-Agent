@@ -1,4 +1,6 @@
 .env
+credentials.json
+token.json
 db.sqlite3
 __pycache__/
 *.pyc

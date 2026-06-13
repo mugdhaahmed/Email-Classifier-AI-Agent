@@ -16,6 +16,12 @@ langchain-core==0.2.7
 langchain-google-genai==1.0.6
 pydantic==2.10.1
 
+# Gmail API Integration (real email ingestion)
+google-api-python-client==2.137.0
+google-auth==2.32.0
+google-auth-oauthlib==1.2.1
+google-auth-httplib2==0.2.0
+
 # Environment Variable & Secret Management
 django-environ==0.11.2
 

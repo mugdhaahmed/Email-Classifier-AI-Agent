@@ -74,7 +74,7 @@ Each notification card displays all six required fields: **sender, subject, prio
 
 This is a proof-of-concept. Known limitations:
 
-- **Mock data source.** The current ingestion reads from `mock_emails.json`. Gmail/IMAP adapters are designed for but not yet implemented (see [CORE_ARCHITECTURE.md](CORE_ARCHITECTURE.md)).
+- **IMAP / webhooks not yet implemented.** Mock JSON and real Gmail are supported today; other sources (IMAP, webhooks, queues) are designed for but not yet built (see [CORE_ARCHITECTURE.md](CORE_ARCHITECTURE.md)).
 - **In-memory channel layer.** WebSocket broadcasting uses Django Channels' in-memory backend, which works for a single process only. Production multi-worker deployments would need Redis (`channels-redis` is already in `requirements.txt`).
 - **SQLite database.** Fine for development; a production deployment should use PostgreSQL.
 - **Polling interval.** The worker polls every 2 minutes, so there is up to a 2-minute delay between an email arriving in the source and appearing on the dashboard.
@@ -141,9 +141,33 @@ Copy `.env.example` to `backend/.env` and configure:
 | `SECRET_KEY` | Django secret key |
 | `DEBUG` | `True` for development |
 | `GEMINI_API_KEY` | Your Google Gemini API key |
-| `MOCK_MODE` | `True` to use `mock_emails.json` as the email source |
+| `MOCK_MODE` | `True` → use `mock_emails.json`; `False` → read real Gmail |
 | `ALLOWED_HOSTS` | Comma-separated allowed hostnames |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated allowed frontend origins |
+| `GMAIL_QUERY` | Gmail search query for the worker (default `is:unread`) |
+| `GMAIL_MAX_RESULTS` | Max messages pulled per poll (default `10`) |
+| `GMAIL_CREDENTIALS_PATH` | Path to OAuth client file (default `credentials.json`) |
+| `GMAIL_TOKEN_PATH` | Path to saved token file (default `token.json`) |
+| `PIPELINE_AUTOSTART` | `False` disables the background worker (default `True`) |
+
+---
+
+## Connecting Real Gmail
+
+By default the agent runs in **mock mode** (`MOCK_MODE=True`) and reads `mock_emails.json` — no credentials needed. To ingest a real inbox instead:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project and **enable the Gmail API**.
+2. Configure the **OAuth consent screen** (External) and add your own Google account as a test user.
+3. Create credentials → **OAuth client ID → Desktop app**, download the JSON, and save it as `backend/credentials.json`.
+4. Run the one-time authentication (opens a browser):
+   ```bash
+   cd backend
+   python manage.py gmail_auth
+   ```
+   This writes `backend/token.json`. The worker then runs headless using the saved refresh token.
+5. Set `MOCK_MODE=False` in `backend/.env` and restart the server.
+
+The agent uses **read-only** Gmail access (`gmail.readonly`) — it never modifies your inbox. Both `credentials.json` and `token.json` are gitignored; never commit them.
 
 ---
 
@@ -153,6 +177,7 @@ Copy `.env.example` to `backend/.env` and configure:
 |---|---|
 | [CORE_ARCHITECTURE.md](CORE_ARCHITECTURE.md) | Source-agnostic system design, execution flow, and design principles |
 | [ARCHITECTURE_LOCAL_JSON.md](ARCHITECTURE_LOCAL_JSON.md) | JSON ingestion implementation, idempotency mechanics, and classification examples |
+| [ARCHITECTURE_GMAIL.md](ARCHITECTURE_GMAIL.md) | Real Gmail ingestion: OAuth flow, fetch logic, and the source adapter design |
 
 ---
 

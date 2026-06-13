@@ -2,6 +2,10 @@ services:
   backend:
     build: ./backend
     container_name: ai_email_backend
+    # The ./backend bind mount below exposes the whole backend/ dir to the
+    # container. For real Gmail mode, place credentials.json + token.json in
+    # backend/ (generate token.json via `python manage.py gmail_auth` on the
+    # host first) and they are picked up automatically. Both are gitignored.
     volumes:
       - ./backend:/app
     ports:
