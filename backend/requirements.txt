@@ -23,7 +23,7 @@ google-auth-oauthlib==1.2.1
 google-auth-httplib2==0.2.0
 
 # Environment Variable & Secret Management
-django-environ==0.11.2
+python-decouple==3.8
 
 # Production Database & Static Files (deployment)
 dj-database-url==2.2.0
