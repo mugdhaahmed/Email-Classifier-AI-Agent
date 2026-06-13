@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from decouple import config, Csv
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -16,6 +17,9 @@ DEBUG = config('DEBUG', cast=bool, default=True)
 
 # Allow all hosts for simple local testing and multi-container Docker routing
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
+
+# Trusted origins for CSRF (the backend's own HTTPS domain in production)
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', cast=Csv(), default='')
 
 # Application definition
 
@@ -41,6 +45,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS middleware must handle requests at the absolute top
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files (e.g. admin) under DEBUG=False
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -80,17 +85,18 @@ CHANNEL_LAYERS = {
 }
 
 # Permissive development CORS rules to allow seamless React API requests
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv(), default='')
 
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+# Uses DATABASE_URL (e.g. Neon Postgres) when set, otherwise local SQLite.
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+    )
 }
 
 
@@ -129,6 +135,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Collected static files (Django admin etc.), served by WhiteNoise in production
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field

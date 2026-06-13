@@ -23,5 +23,6 @@ COPY . /app/
 # Expose Django/Daphne's default runtime port
 EXPOSE 8000
 
-# Run database migrations and launch the Daphne ASGI server interface on container boot
-CMD ["sh", "-c", "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 core.asgi:application"]
+# Migrate, collect static (for admin under DEBUG=False), then launch Daphne.
+# Render injects $PORT; default to 8000 for local runs.
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p ${PORT:-8000} core.asgi:application"]

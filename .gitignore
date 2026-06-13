@@ -18,6 +18,11 @@ token.json
 # Database binaries
 *.sqlite3
 
+# Build artifacts
+staticfiles/
+frontend/dist/
+node_modules/
+
 # IDE config files
 .vscode/
 .idea/

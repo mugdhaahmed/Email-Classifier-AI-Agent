@@ -171,6 +171,31 @@ The agent uses **read-only** Gmail access (`gmail.readonly`) — it never modifi
 
 ---
 
+## Live Deployment (Render)
+
+The app deploys as **three free services**, wired together by GitHub Actions:
+
+| Service | Hosts | Notes |
+|---|---|---|
+| **Frontend** | Render Static Site | React build (`npm run build` → `dist`); global CDN, no spin-down |
+| **Backend** | Render Web Service (Docker) | Daphne ASGI — REST + WebSocket + background worker |
+| **Database** | Neon Postgres (free) | Persists classified emails across restarts |
+
+**Flow:** push to `main` → GitHub Actions builds + checks both apps → triggers Render deploy hooks → Render rebuilds and ships.
+
+### Backend env vars (set in Render dashboard)
+`SECRET_KEY`, `DEBUG=False`, `GEMINI_API_KEY`, `MOCK_MODE`, `DATABASE_URL` (from Neon), `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` (the frontend URL), `CSRF_TRUSTED_ORIGINS` (the backend URL), `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_MAX_RESULTS`.
+
+### Frontend env vars (set in Render Static Site)
+`VITE_API_URL=https://<backend>.onrender.com`, `VITE_WS_URL=wss://<backend>.onrender.com`.
+
+### GitHub repo secrets
+`RENDER_BACKEND_DEPLOY_HOOK`, `RENDER_FRONTEND_DEPLOY_HOOK`.
+
+> Secrets live only in the Render/Neon/GitHub dashboards — never in the repo. Set `MOCK_MODE=True` for a clean, quota-free public demo, or `MOCK_MODE=False` to classify a real inbox.
+
+---
+
 ## Documentation
 
 | Document | Contents |

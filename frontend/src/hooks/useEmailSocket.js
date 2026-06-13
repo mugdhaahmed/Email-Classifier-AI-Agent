@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 
+// Backend endpoints are configurable at build time so the same code works
+// locally (defaults below) and in production (Render env vars). The frontend
+// is served from a different origin than the backend, hence absolute URLs.
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
+const WS_BASE = import.meta.env.VITE_WS_URL ?? 'ws://127.0.0.1:8000';
+
 export const useEmailSocket = () => {
   const [notifications, setNotifications] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     // 1. Fetch past stored alerts from our Django REST Framework view endpoint upon mounting
-    fetch('http://127.0.0.1:8000/api/notifications/')
+    fetch(`${API_BASE}/api/notifications/`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -16,7 +22,7 @@ export const useEmailSocket = () => {
       .catch((err) => console.error("[REST SYNC ERROR] Failed hydration sync:", err));
 
     // 2. Open up a persistent live channel pipeline to our Daphne server instance
-    const socket = new WebSocket('ws://127.0.0.1:8000/ws/emails/');
+    const socket = new WebSocket(`${WS_BASE}/ws/emails/`);
 
     socket.onopen = () => {
       setIsConnected(true);
